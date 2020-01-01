@@ -31,16 +31,14 @@ impl Ray {
     }
 
     pub fn random_in_sphere() -> Vec3 {
-        let mut p = Vec3::new();
         let mut rn = rand::thread_rng();
         loop {
-            p = 2.0 * Vec3::with_values(rn.gen::<f64>(), rn.gen::<f64>(), rn.gen::<f64>())
+            let p = 2.0 * Vec3::with_values(rn.gen::<f64>(), rn.gen::<f64>(), rn.gen::<f64>())
                 - Vec3::with_values(1.0, 1.0, 1.0);
             if p.squared_len() < 1.0 {
-                break;
+                return p;
             }
         }
-        p
     }
 
     pub fn color(&self, world: &mut HitableList, depth: i64) -> Vec3 {

@@ -1,107 +1,39 @@
 pub mod camera;
 pub mod hitable;
+pub mod map;
 pub mod material;
 pub mod ray;
 pub mod vec3;
 
 use camera::Camera;
-use hitable::{HitableList, Sphere};
 use image::{ImageBuffer, Pixel, Rgb};
-use material::{Dielectric, Lambertian, Metal};
+use map::MapFile;
 use rand::Rng;
 use std::sync::mpsc::channel;
 use std::thread::{spawn, JoinHandle};
 use vec3::*;
 
-const MUL: u32 = 8;
-const RAYS: u32 = 320;
-const CORE_CNT: u32 = 16;
+const MUL: u32 = 4;
+const RAYS: u32 = 120;
+const CORE_CNT: u32 = 12;
 
 fn main() {
     let nx = 200 * MUL;
     let ny = 100 * MUL;
     let ns = RAYS / CORE_CNT;
-    let mut rng = rand::thread_rng();
+    let map = MapFile::generate_random();
+    let world = map.build_world();
     let mut image = ImageBuffer::new(nx, ny);
-    let mut world = HitableList::new();
     let mut threads: Vec<JoinHandle<()>> = Vec::new();
 
-    for a in -11..11 {
-        for b in -11..11 {
-            let pick = rng.gen::<f64>();
-            let center = Vec3::with_values(
-                a as f64 + 0.9 * rng.gen::<f64>(),
-                0.2,
-                b as f64 + 0.9 * rng.gen::<f64>(),
-            );
-            if (center - Vec3::with_values(4.0, 0.2, 0.0)).len() > 0.9 {
-                if pick < 0.8 {
-                    world.put(Box::new(Sphere::with_values(
-                        center,
-                        0.2,
-                        Box::new(Lambertian::new(Vec3::with_values(
-                            rng.gen::<f64>(),
-                            rng.gen::<f64>(),
-                            rng.gen::<f64>(),
-                        ))),
-                    )));
-                } else if pick < 0.95 {
-                    world.put(Box::new(Sphere::with_values(
-                        center,
-                        0.2,
-                        Box::new(Metal::new(
-                            Vec3::with_values(rng.gen::<f64>(), rng.gen::<f64>(), rng.gen::<f64>()),
-                            0.3,
-                        )),
-                    )));
-                } else {
-                    world.put(Box::new(Sphere::with_values(
-                        center,
-                        0.2,
-                        Box::new(Dielectric::new(1.5)),
-                    )));
-                }
-            }
-        }
-    }
-
-    world.put(Box::new(Sphere::with_values(
-        Vec3::with_values(0.0, -1000.0, 0.0),
-        1000.0,
-        Box::new(Lambertian::new(Vec3::with_values(0.5, 0.5, 0.5))),
-    )));
-
-    world.put(Box::new(Sphere::with_values(
-        Vec3::with_values(0.0, 1.0, 0.0),
-        1.0,
-        Box::new(Dielectric::new(1.5)),
-    )));
-
-    world.put(Box::new(Sphere::with_values(
-        Vec3::with_values(-4.0, 1.0, 0.0),
-        1.0,
-        Box::new(Lambertian::new(Vec3::with_values(0.4, 0.2, 0.1))),
-    )));
-
-    world.put(Box::new(Sphere::with_values(
-        Vec3::with_values(4.0, 1.0, 0.0),
-        1.0,
-        Box::new(Metal::new(Vec3::with_values(0.7, 0.6, 0.5), 0.0)),
-    )));
-
-    let lookfrom = Vec3::with_values(13.0, 2.0, 3.0);
-    let lookat = Vec3::with_values(0.0, 0.0, 0.0);
-    let dist_to_focus = 10.0;
-    let aperture = 0.1;
-
     let camera = Camera::new(
-        lookfrom,
-        lookat,
+        map.lookfrom.into(),
+        map.lookat.into(),
         Vec3::with_values(0.0, 1.0, 0.0),
         20.0,
         nx as f64 / ny as f64,
-        aperture,
-        dist_to_focus,
+        map.aperture,
+        map.dist_to_focus,
     );
 
     let (tx, rx) = channel();
@@ -146,8 +78,6 @@ fn main() {
         threads.push(handle);
     }
 
-    println!("{}", threads.len());
-
     let mut results: Vec<Vec<Vec<(u8, u8, u8)>>> = Vec::new();
 
     for i in threads.drain(0..) {
@@ -155,7 +85,6 @@ fn main() {
         results.push(rx.recv().unwrap());
     }
 
-    println!("{} {}", results.len(), threads.len());
     let blank: Vec<Vec<(u8, u8, u8)>> = {
         let mut x = Vec::new();
         for _ in 0..nx {
@@ -189,7 +118,6 @@ fn main() {
                 .collect::<Vec<Vec<(u8, u8, u8)>>>()
         });
 
-    println!("{}", r.len());
     for (xi, xp) in r.iter().enumerate() {
         for (yi, yp) in xp.iter().enumerate() {
             image.put_pixel(

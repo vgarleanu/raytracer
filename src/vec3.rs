@@ -173,3 +173,9 @@ impl Neg for Vec3 {
         Vec3::with_values(-self.0, -self.1, -self.2)
     }
 }
+
+impl From<(f64, f64, f64)> for Vec3 {
+    fn from(params: (f64, f64, f64)) -> Vec3 {
+        Vec3::with_values(params.0, params.1, params.2)
+    }
+}
