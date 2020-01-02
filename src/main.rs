@@ -15,15 +15,15 @@ use std::sync::mpsc::channel;
 use std::thread::{spawn, JoinHandle};
 use vec3::*;
 
-const MUL: u32 = 4;
-const RAYS: u32 = 140;
-const CORE_CNT: u32 = 14;
+const MUL: u32 = 6;
+const RAYS: u32 = 300;
+const CORE_CNT: u32 = 15;
 
 fn main() {
     let nx = 200 * MUL;
     let ny = 100 * MUL;
     let ns = RAYS / CORE_CNT;
-    let map = MapFile::test_map();
+    let map = MapFile::generate_random();
     let world = map.build_world();
     let mut image = ImageBuffer::new(nx, ny);
     let mut threads: Vec<JoinHandle<()>> = Vec::new();

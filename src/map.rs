@@ -123,10 +123,18 @@ impl MapFile {
                     b as f64 + 0.9 * rng.gen::<f64>(),
                 );
                 if (Vec3::from(center) as Vec3 - Vec3::with_values(4.0, 0.2, 0.0)).len() > 0.9 {
-                    if pick < 0.8 {
+                    if pick < 0.2 {
+                        objects.push(Object::Sphere {
+                            position: center,
+                            radius: 0.2,
+                            material: Material::Lambertian {
+                                texture: Texture::NoiseTexture { scale: 1.0 },
+                            },
+                        });
+                    } else if pick < 0.4 {
                         objects.push(Object::MovingSphere {
                             position: center,
-                            shift: (0.0, 0.5 * rng.gen::<f64>(), 0.0),
+                            shift: (0.0, 0.0 * rng.gen::<f64>(), 0.0),
                             radius: 0.2,
                             material: Material::Lambertian {
                                 texture: Texture::SolidTexture(
@@ -136,7 +144,7 @@ impl MapFile {
                                 ),
                             },
                         });
-                    } else if pick < 0.95 {
+                    } else if pick < 0.7 {
                         objects.push(Object::Sphere {
                             position: center,
                             radius: 0.2,
@@ -172,9 +180,11 @@ impl MapFile {
         });
 
         objects.push(Object::Sphere {
-            position: (0.0, 1.0, 0.0),
+            position: (-8.0, 1.0, 0.0),
             radius: 1.0,
-            material: Material::Dielectric(1.5),
+            material: Material::Lambertian {
+                texture: Texture::NoiseTexture { scale: 1.0 },
+            },
         });
 
         objects.push(Object::Sphere {
@@ -186,10 +196,17 @@ impl MapFile {
         });
 
         objects.push(Object::Sphere {
+            position: (0.0, 1.0, 0.0),
+            radius: 1.0,
+            material: Material::Dielectric(1.5),
+        });
+
+        objects.push(Object::Sphere {
             position: (4.0, 1.0, 0.0),
             radius: 1.0,
-            material: Material::Lambertian {
-                texture: Texture::NoiseTexture { scale: 0.5 },
+            material: Material::Metal {
+                texture: Texture::SolidTexture(255, 255, 255),
+                fuzz: 0.0,
             },
         });
 
