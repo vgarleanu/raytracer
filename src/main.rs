@@ -1,8 +1,10 @@
+pub mod aabb;
 pub mod camera;
 pub mod hitable;
 pub mod map;
 pub mod material;
 pub mod ray;
+pub mod texture;
 pub mod vec3;
 
 use camera::Camera;
@@ -14,14 +16,14 @@ use std::thread::{spawn, JoinHandle};
 use vec3::*;
 
 const MUL: u32 = 4;
-const RAYS: u32 = 120;
-const CORE_CNT: u32 = 12;
+const RAYS: u32 = 140;
+const CORE_CNT: u32 = 14;
 
 fn main() {
     let nx = 200 * MUL;
     let ny = 100 * MUL;
     let ns = RAYS / CORE_CNT;
-    let map = MapFile::generate_random();
+    let map = MapFile::test_map();
     let world = map.build_world();
     let mut image = ImageBuffer::new(nx, ny);
     let mut threads: Vec<JoinHandle<()>> = Vec::new();
@@ -34,9 +36,13 @@ fn main() {
         nx as f64 / ny as f64,
         map.aperture,
         map.dist_to_focus,
+        0.0,
+        1.0,
     );
 
     let (tx, rx) = channel();
+    println!("{}", map.objects.len());
+    println!("{:#?}", world);
 
     for _ in 0..CORE_CNT {
         let camera = camera.clone();
@@ -67,9 +73,9 @@ fn main() {
 
                     col /= ns as f64;
 
-                    let ir = (255.99 * col.x()) as u8;
-                    let ig = (255.99 * col.y()) as u8;
-                    let ib = (255.99 * col.z()) as u8;
+                    let ir = (255.99 * col.x().sqrt()) as u8;
+                    let ig = (255.99 * col.y().sqrt()) as u8;
+                    let ib = (255.99 * col.z().sqrt()) as u8;
                     result[i as usize][j as usize] = (ir, ig, ib);
                 }
             }

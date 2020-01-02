@@ -2,15 +2,16 @@ use crate::hitable::{HitRecord, Hitable, HitableList};
 use crate::vec3::Vec3;
 use rand::Rng;
 
-pub struct Ray(Vec3, Vec3);
+// A, B, time
+pub struct Ray(Vec3, Vec3, f64);
 
 impl Ray {
     pub fn new() -> Self {
-        Self(Vec3::new(), Vec3::new())
+        Self(Vec3::new(), Vec3::new(), 0.0)
     }
 
-    pub fn with_values(a: Vec3, b: Vec3) -> Self {
-        Self(a, b)
+    pub fn with_values(a: Vec3, b: Vec3, t: Option<f64>) -> Self {
+        Self(a, b, t.unwrap_or(0.0))
     }
 
     pub fn origin(&self) -> Vec3 {
@@ -30,11 +31,26 @@ impl Ray {
         self.1 = rhs.direction();
     }
 
+    pub fn time(&self) -> f64 {
+        self.2
+    }
+
     pub fn random_in_sphere() -> Vec3 {
         let mut rn = rand::thread_rng();
         loop {
             let p = 2.0 * Vec3::with_values(rn.gen::<f64>(), rn.gen::<f64>(), rn.gen::<f64>())
                 - Vec3::with_values(1.0, 1.0, 1.0);
+            if p.squared_len() < 1.0 {
+                return p;
+            }
+        }
+    }
+
+    pub fn random_in_unit_disk() -> Vec3 {
+        let mut rn = rand::thread_rng();
+        loop {
+            let p = 2.0 * Vec3::with_values(rn.gen::<f64>(), rn.gen::<f64>(), 0.0)
+                - Vec3::with_values(1.0, 1.0, 0.0);
             if p.squared_len() < 1.0 {
                 return p;
             }

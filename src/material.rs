@@ -1,8 +1,10 @@
 use crate::hitable::HitRecord;
 use crate::ray::Ray;
+use crate::texture::Texture;
 use crate::vec3::Vec3;
 use dyn_clone::DynClone;
 use rand::prelude::*;
+use std::fmt::Debug as DebugTrait;
 
 pub fn reflect(v: Vec3, n: Vec3) -> Vec3 {
     v - 2.0 * v.dot(n) * n
@@ -25,7 +27,7 @@ pub fn schlick(cos: f64, ref_index: f64) -> f64 {
     r0 + (1.0 - r0) * (1.0 - cos).powi(5)
 }
 
-pub trait Material: DynClone + Send {
+pub trait Material: DynClone + Send + DebugTrait {
     fn scatter(
         &self,
         ray_in: &Ray,
@@ -37,13 +39,13 @@ pub trait Material: DynClone + Send {
 
 dyn_clone::clone_trait_object!(Material);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Lambertian {
-    albedo: Vec3,
+    albedo: Box<dyn Texture>,
 }
 
 impl Lambertian {
-    pub fn new(albedo: Vec3) -> Self {
+    pub fn new(albedo: Box<dyn Texture>) -> Self {
         Self { albedo }
     }
 }
@@ -51,26 +53,30 @@ impl Lambertian {
 impl Material for Lambertian {
     fn scatter(
         &self,
-        _: &Ray,
+        ray_in: &Ray,
         hit_record: &HitRecord,
         attenuation: &mut Vec3,
         scattered: &mut Ray,
     ) -> bool {
         let target = hit_record.p + hit_record.normal + Ray::random_in_sphere();
-        scattered.update(Ray::with_values(hit_record.p, target - hit_record.p));
-        attenuation.update(self.albedo);
+        scattered.update(Ray::with_values(
+            hit_record.p,
+            target - hit_record.p,
+            Some(ray_in.time()),
+        ));
+        attenuation.update(self.albedo.value(hit_record.u, hit_record.v, hit_record.p));
         true
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Metal {
-    albedo: Vec3,
+    albedo: Box<dyn Texture>,
     fuzz: f64,
 }
 
 impl Metal {
-    pub fn new(albedo: Vec3, fuzz: f64) -> Self {
+    pub fn new(albedo: Box<dyn Texture>, fuzz: f64) -> Self {
         Self {
             albedo,
             fuzz: if fuzz < 1.0 { fuzz } else { 1.0 },
@@ -90,13 +96,14 @@ impl Material for Metal {
         scattered.update(Ray::with_values(
             hit_record.p,
             reflected + self.fuzz * Ray::random_in_sphere(),
+            None,
         ));
-        attenuation.update(self.albedo);
+        attenuation.update(self.albedo.value(0.0, 0.0, Vec3::new()));
         scattered.direction().dot(hit_record.normal) > 0.0
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Dielectric {
     ref_index: f64,
 }
@@ -147,9 +154,9 @@ impl Material for Dielectric {
         }
 
         if rng.gen::<f64>() < reflect_prob {
-            scattered.update(Ray::with_values(hit_record.p, reflected));
+            scattered.update(Ray::with_values(hit_record.p, reflected, None));
         } else {
-            scattered.update(Ray::with_values(hit_record.p, refracted));
+            scattered.update(Ray::with_values(hit_record.p, refracted, None));
         }
         true
     }
