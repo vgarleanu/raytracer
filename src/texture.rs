@@ -1,9 +1,11 @@
 use crate::vec3::Vec3;
 use dyn_clone::DynClone;
+use image::{DynamicImage, GenericImageView, Pixel};
 use noise::{NoiseFn, Perlin, Turbulence};
+use std::fmt;
 use std::fmt::Debug as DebugTrait;
 
-pub trait Texture: DynClone + Send + DebugTrait {
+pub trait Texture: Sync + DynClone + Send + DebugTrait {
     fn value(&self, u: f64, v: f64, p: Vec3) -> Vec3;
 }
 
@@ -57,12 +59,6 @@ pub struct NoiseTexture {
 
 impl NoiseTexture {
     pub fn new(scale: f64) -> Box<Self> {
-        /*
-        Box::new(Self {
-            noise: Perlin::new(),
-            scale,
-        })
-        */
         Box::new(Self {
             noise: Turbulence::new(Perlin::new())
                 .set_frequency(1.5)
@@ -81,5 +77,42 @@ impl Texture for NoiseTexture {
         Vec3::with_values(1.0, 1.0, 1.0)
             * 0.5
             * (1.0 + (self.scale * p.z() + 10.0 * self.turbulence(p)).sin())
+    }
+}
+
+#[derive(Clone)]
+pub struct ImageTexture {
+    nx: u32,
+    ny: u32,
+    image: DynamicImage,
+}
+
+impl ImageTexture {
+    pub fn new(path: &str) -> Box<Self> {
+        let image = image::open(path).unwrap();
+        let (nx, ny) = image.dimensions();
+        Box::new(Self { nx, ny, image })
+    }
+}
+
+impl fmt::Debug for ImageTexture {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ImageBuffer {{ nx: {}, ny: {} }}", self.nx, self.ny)
+    }
+}
+
+impl Texture for ImageTexture {
+    fn value(&self, u: f64, v: f64, _: Vec3) -> Vec3 {
+        let mut i = (u * self.nx as f64) as u32;
+        let mut j = ((1.0 - v) * self.ny as f64 - 0.001) as u32;
+        if i > self.nx - 1 {
+            i = self.nx - 1;
+        }
+        if j > self.ny - 1 {
+            j = self.ny - 1
+        }
+        let (r, g, b, _) = unsafe { self.image.unsafe_get_pixel(i, j).channels4() };
+
+        Vec3::with_values(r as f64 / 255.0, g as f64 / 255.0, b as f64 / 255.0)
     }
 }

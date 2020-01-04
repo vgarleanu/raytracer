@@ -27,7 +27,7 @@ pub fn schlick(cos: f64, ref_index: f64) -> f64 {
     r0 + (1.0 - r0) * (1.0 - cos).powi(5)
 }
 
-pub trait Material: DynClone + Send + DebugTrait {
+pub trait Material: Sync + DynClone + Send + DebugTrait {
     fn scatter(
         &self,
         ray_in: &Ray,
@@ -35,6 +35,9 @@ pub trait Material: DynClone + Send + DebugTrait {
         attenuation: &mut Vec3,
         scattered: &mut Ray,
     ) -> bool;
+    fn emitted(&self, _: f64, _: f64, _: Vec3) -> Vec3 {
+        Vec3::with_values(0.0, 0.0, 0.0)
+    }
 }
 
 dyn_clone::clone_trait_object!(Material);
@@ -59,11 +62,7 @@ impl Material for Lambertian {
         scattered: &mut Ray,
     ) -> bool {
         let target = hit_record.p + hit_record.normal + Ray::random_in_sphere();
-        scattered.update(Ray::with_values(
-            hit_record.p,
-            target - hit_record.p,
-            Some(ray_in.time()),
-        ));
+        scattered.update(Ray::with_values(hit_record.p, target - hit_record.p, None));
         attenuation.update(self.albedo.value(hit_record.u, hit_record.v, hit_record.p));
         true
     }
@@ -96,9 +95,9 @@ impl Material for Metal {
         scattered.update(Ray::with_values(
             hit_record.p,
             reflected + self.fuzz * Ray::random_in_sphere(),
-            None,
+            Some(ray_in.time()),
         ));
-        attenuation.update(self.albedo.value(0.0, 0.0, Vec3::new()));
+        attenuation.update(self.albedo.value(hit_record.u, hit_record.v, hit_record.p));
         scattered.direction().dot(hit_record.normal) > 0.0
     }
 }
@@ -159,5 +158,41 @@ impl Material for Dielectric {
             scattered.update(Ray::with_values(hit_record.p, refracted, None));
         }
         true
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Blank;
+
+impl Blank {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Material for Blank {
+    fn scatter(&self, _: &Ray, _: &HitRecord, _: &mut Vec3, _: &mut Ray) -> bool {
+        false
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct DiffuseLight {
+    emit: Box<dyn Texture>,
+}
+
+impl DiffuseLight {
+    pub fn new(emit: Box<dyn Texture>) -> Self {
+        Self { emit }
+    }
+}
+
+impl Material for DiffuseLight {
+    fn scatter(&self, _: &Ray, _: &HitRecord, _: &mut Vec3, _: &mut Ray) -> bool {
+        false
+    }
+
+    fn emitted(&self, u: f64, v: f64, p: Vec3) -> Vec3 {
+        self.emit.value(u, v, p)
     }
 }

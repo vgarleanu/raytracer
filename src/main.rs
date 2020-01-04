@@ -16,14 +16,14 @@ use std::thread::{spawn, JoinHandle};
 use vec3::*;
 
 const MUL: u32 = 6;
-const RAYS: u32 = 300;
-const CORE_CNT: u32 = 15;
+const RAYS: u32 = 20000;
+const CORE_CNT: u32 = 14;
 
 fn main() {
     let nx = 200 * MUL;
-    let ny = 100 * MUL;
+    let ny = 200 * MUL;
     let ns = RAYS / CORE_CNT;
-    let map = MapFile::generate_random();
+    let map = MapFile::map2();
     let world = map.build_world();
     let mut image = ImageBuffer::new(nx, ny);
     let mut threads: Vec<JoinHandle<()>> = Vec::new();
@@ -32,7 +32,7 @@ fn main() {
         map.lookfrom.into(),
         map.lookat.into(),
         Vec3::with_values(0.0, 1.0, 0.0),
-        20.0,
+        40.0,
         nx as f64 / ny as f64,
         map.aperture,
         map.dist_to_focus,
@@ -42,7 +42,6 @@ fn main() {
 
     let (tx, rx) = channel();
     println!("{}", map.objects.len());
-    println!("{:#?}", world);
 
     for _ in 0..CORE_CNT {
         let camera = camera.clone();
@@ -62,6 +61,7 @@ fn main() {
                 x
             };
             for j in 0..ny {
+                println!("Render column: {} out of {}", j, ny);
                 for i in 0..nx {
                     let mut col = Vec3::new();
                     for _ in 0..ns {
@@ -72,6 +72,7 @@ fn main() {
                     }
 
                     col /= ns as f64;
+                    col = Vec3::with_values(col.x().min(1.0), col.y().min(1.0), col.z().min(1.0));
 
                     let ir = (255.99 * col.x().sqrt()) as u8;
                     let ig = (255.99 * col.y().sqrt()) as u8;
