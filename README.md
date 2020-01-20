@@ -2,7 +2,7 @@
 
 ![Latest Render](./image.png?raw=true)
 
-> Simple raytracer written in rust, able to load simple json map files and render them.
+> Simple multithreaded raytracer written in rust, able to load simple json map files and render them.
 
 ## Build
 Building in release mode improves performance by a major factor. To build this renderer run.
