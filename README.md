@@ -44,4 +44,4 @@ inclusion in PushEvent by you shall be licensed under the MIT License
 without any additional terms or conditions.
 
 ## License
-Dim is licensed under the MIT license ([LICENSE.md](LICENSE.md) or http://opensource.org/licenses/MIT)
+This software is licensed under the MIT license ([LICENSE.md](LICENSE.md) or http://opensource.org/licenses/MIT)
