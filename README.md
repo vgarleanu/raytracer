@@ -40,7 +40,7 @@ come in many forms. You could:
 
 All pull requests are code reviewed and tested by the CI. Note that unless you
 explicitly state otherwise, any contribution intentionally submitted for
-inclusion in PushEvent by you shall be licensed under the MIT License 
+inclusion in this software by you shall be licensed under the MIT License 
 without any additional terms or conditions.
 
 ## License
