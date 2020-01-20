@@ -54,7 +54,8 @@ pub enum Object {
         material: Material,
     },
     BvhNode {
-        objects: Box<Vec<Object>>,
+        objects: Vec<Object>,
+        material: Material,
     },
 }
 
@@ -123,8 +124,9 @@ impl Object {
                 Vec3::from(p1),
                 MapFile::build_material(material),
             )),
-            Object::BvhNode { objects } => Box::new(BvhNode::new(
+            Object::BvhNode { objects, material } => Box::new(BvhNode::new(
                 &mut objects.into_iter().map(Object::parse).collect::<_>(),
+                MapFile::build_material(material),
                 0.0,
                 1.0,
             )),
@@ -241,12 +243,13 @@ impl MapFile {
         });
 
         objects.push(Object::Sphere {
-            position: (-8.0, 1.0, 0.0),
-            radius: 1.0,
+            position: (4.0, 1.0, 0.0),
+            radius: 80.0,
             material: Material::Lambertian {
                 texture: Texture::NoiseTexture { scale: 1.0 },
             },
         });
+        /*
 
         objects.push(Object::Sphere {
             position: (-4.0, 1.0, 0.0),
@@ -281,6 +284,7 @@ impl MapFile {
                 },
             },
         });
+        */
 
         Self {
             lookfrom: (14.0, 4.0, 7.0),
@@ -350,11 +354,6 @@ impl MapFile {
             texture: Texture::SolidTexture(255 * 15, 255 * 15, 255 * 15),
         };
 
-        let light_metal = Material::Metal {
-            texture: Texture::SolidTexture(255, 255, 255),
-            fuzz: 0.0,
-        };
-
         objects.push(Object::FlipNormals(Box::new(Object::RectSliceYz {
             params: (0.0, 555.0, 0.0, 555.0, 555.0),
             material: green_material,
@@ -394,7 +393,7 @@ impl MapFile {
         objects.push(Object::BoxObject {
             p0: (256.0, 0.0, 295.0),
             p1: (430.0, 330.0, 460.0),
-            material: white_material.clone(),
+            material: white_material,
         });
 
         Self {
@@ -409,9 +408,6 @@ impl MapFile {
     pub fn map2() -> MapFile {
         let mut ground_box = Vec::new();
         let mut objects = Vec::new();
-        let white = Material::Lambertian {
-            texture: Texture::SolidTexture(186, 186, 186),
-        };
         let ground = Material::Lambertian {
             texture: Texture::SolidTexture(122, 212, 135),
         };
@@ -443,7 +439,8 @@ impl MapFile {
         });
 
         objects.push(Object::BvhNode {
-            objects: Box::new(ground_box),
+            objects: ground_box,
+            material: ground,
         });
 
         let l = 255 * 7;
@@ -457,7 +454,7 @@ impl MapFile {
 
         objects.push(Object::MovingSphere {
             position: (400.0, 400.0, 400.0),
-            shift: (30.0, 0.0, 0.0),
+            shift: (60.0, 0.0, 0.0),
             radius: 50.0,
             material: Material::Lambertian {
                 texture: Texture::SolidTexture(178, 76, 25),
@@ -493,7 +490,9 @@ impl MapFile {
             position: (220.0, 280.0, 300.0),
             radius: 80.0,
             material: Material::Lambertian {
-                texture: Texture::NoiseTexture { scale: 1.0 },
+                texture: Texture::ImageTexture {
+                    path: "./textures/stone.jpg".into(),
+                },
             },
         });
 
@@ -510,5 +509,14 @@ impl MapFile {
         let mut file = std::fs::File::create(file).unwrap();
         let v = serde_json::to_string(self).unwrap();
         let _ = file.write_all(v.as_bytes());
+    }
+
+    pub fn load_from_file<T: AsRef<std::path::Path>>(file: T) -> Self {
+        let mut file = std::fs::File::open(file).unwrap();
+        let mut buf = String::new();
+
+        file.read_to_string(&mut buf).unwrap();
+
+        serde_json::from_str(buf.as_ref()).unwrap()
     }
 }

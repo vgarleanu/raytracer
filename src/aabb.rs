@@ -1,6 +1,8 @@
 use crate::ray::Ray;
 use crate::vec3::Vec3;
 
+/// Struct describes a minimal axis aligned bounding box, use withink the ray tracing algorithm to
+/// detect ray intersection
 #[derive(Clone, Debug)]
 pub struct Aabb {
     min: Vec3,

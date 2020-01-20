@@ -3,15 +3,15 @@ use crate::vec3::Vec3;
 use rand::Rng;
 
 // A, B, time
-pub struct Ray(Vec3, Vec3, f64);
+pub struct Ray(Vec3, Vec3, f64, pub bool);
 
 impl Ray {
-    pub fn new() -> Self {
-        Self(Vec3::new(), Vec3::new(), 0.0)
+    pub fn new(debug: bool) -> Self {
+        Self(Vec3::new(), Vec3::new(), 0.0, debug)
     }
 
-    pub fn with_values(a: Vec3, b: Vec3, t: Option<f64>) -> Self {
-        Self(a, b, t.unwrap_or(0.0))
+    pub fn with_values(a: Vec3, b: Vec3, t: Option<f64>, debug: bool) -> Self {
+        Self(a, b, t.unwrap_or(0.0), debug)
     }
 
     pub fn origin(&self) -> Vec3 {
@@ -62,7 +62,7 @@ impl Ray {
 
         let hit = world.hit(self, 0.001, std::f64::MAX, &mut record);
         if hit.0 {
-            let mut scattered = Ray::new();
+            let mut scattered = Ray::new(self.3);
             let mut attenuation = Vec3::new();
             let emitted = hit.1.emitted(record.u, record.v, record.p);
             if depth < 50
@@ -75,7 +75,16 @@ impl Ray {
             }
             return emitted;
         }
-        //Vec3::with_values(1.0, 1.0, 1.0)
-        Vec3::new()
+        if self.3 {
+            Vec3::with_values(1.0, 1.0, 1.0)
+        } else {
+            Vec3::new()
+        }
+    }
+}
+
+impl Default for Ray {
+    fn default() -> Self {
+        Self::new(false)
     }
 }

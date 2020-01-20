@@ -2,6 +2,7 @@ use crate::ray::Ray;
 use crate::vec3::Vec3;
 use rand::Rng;
 
+/// Struct describes the rendering camera.
 #[derive(Clone)]
 pub struct Camera {
     origin: Vec3,
@@ -12,6 +13,7 @@ pub struct Camera {
     lens_radius: f64,
     t0: f64,
     t1: f64,
+    debug: bool,
 }
 
 impl Camera {
@@ -25,6 +27,7 @@ impl Camera {
         focus_dist: f64,
         t0: f64,
         t1: f64,
+        debug: bool,
     ) -> Self {
         let theta = vfov * std::f64::consts::PI / 180.0;
         let half_height = (theta / 2.0).tan();
@@ -46,6 +49,7 @@ impl Camera {
             uvw: (u, v, w),
             t0,
             t1,
+            debug,
         }
     }
 
@@ -57,6 +61,7 @@ impl Camera {
             self.origin + offset,
             self.llc + u * self.horizontal + v * self.vertical - self.origin,
             Some(time),
+            self.debug,
         )
     }
 }

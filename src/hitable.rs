@@ -7,20 +7,20 @@ use dyn_clone::DynClone;
 use rand::Rng;
 use std::fmt::Debug as DebugTrait;
 
+/// Trait that most be implemented for any objects that a ray can hit
 pub trait Hitable: DynClone + Send + DebugTrait {
-    fn hit(
-        &self,
-        r: &Ray,
-        t_min: f64,
-        t_max: f64,
-        rec: &mut HitRecord,
-    ) -> (bool, &Box<dyn Material>);
+    /// Method hit checks whether a incoming ray hits the current object, if it does it returns
+    /// true and the hit record gets updated
+    fn hit(&self, r: &Ray, t_min: f64, t_max: f64, rec: &mut HitRecord) -> (bool, &dyn Material);
+    /// Method replaces the bounding box passed in with the bounding box of the object
     fn bounding_box(&self, t0: f64, t1: f64, bounding_box: &mut Aabb) -> bool;
-    fn get_material(&self) -> &Box<dyn Material>;
+    /// Returns a reference to the material of the object
+    fn get_material(&self) -> &dyn Material;
 }
 
 dyn_clone::clone_trait_object!(Hitable);
 
+/// Function computes the bounding box of two bounding boxes.
 pub fn surrounding_box(box0: &Aabb, box1: &Aabb) -> Aabb {
     let small = Vec3::with_values(
         box0.min().x().min(box1.min().x()),
@@ -36,6 +36,7 @@ pub fn surrounding_box(box0: &Aabb, box1: &Aabb) -> Aabb {
     Aabb::new(small, big)
 }
 
+/// Struct represents a ray hit record that is later used to check and calculate pixel values
 #[derive(Debug)]
 pub struct HitRecord {
     pub u: f64,
@@ -68,6 +69,12 @@ impl HitRecord {
     }
 }
 
+impl Default for HitRecord {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct HitableList {
     list: Vec<Box<dyn Hitable>>,
@@ -87,14 +94,14 @@ impl HitableList {
     }
 }
 
+impl Default for HitableList {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Hitable for HitableList {
-    fn hit(
-        &self,
-        r: &Ray,
-        t_min: f64,
-        t_max: f64,
-        rec: &mut HitRecord,
-    ) -> (bool, &Box<dyn Material>) {
+    fn hit(&self, r: &Ray, t_min: f64, t_max: f64, rec: &mut HitRecord) -> (bool, &dyn Material) {
         let mut hit_anything = false;
         let mut closest_so_far = t_max;
         let mut record = HitRecord::new();
@@ -111,13 +118,13 @@ impl Hitable for HitableList {
         (hit_anything, material_ptr)
     }
 
-    fn get_material(&self) -> &Box<dyn Material> {
+    fn get_material(&self) -> &dyn Material {
         // NOTE: only ever used by BoxObject
         self.list[0].get_material()
     }
 
     fn bounding_box(&self, t0: f64, t1: f64, bounding_box: &mut Aabb) -> bool {
-        if self.list.len() < 1 {
+        if self.list.is_empty() {
             return false;
         }
 
@@ -167,13 +174,7 @@ impl Sphere {
 }
 
 impl Hitable for Sphere {
-    fn hit(
-        &self,
-        r: &Ray,
-        t_min: f64,
-        t_max: f64,
-        rec: &mut HitRecord,
-    ) -> (bool, &Box<dyn Material>) {
+    fn hit(&self, r: &Ray, t_min: f64, t_max: f64, rec: &mut HitRecord) -> (bool, &dyn Material) {
         let oc = r.origin() - self.center;
         let a = r.direction().dot(r.direction());
         let b = oc.dot(r.direction());
@@ -189,7 +190,7 @@ impl Hitable for Sphere {
                 rec.u = u;
                 rec.v = v;
                 rec.normal = (rec.p - self.center) / self.radius;
-                return (true, &self.material);
+                return (true, self.material.as_ref());
             }
 
             let temp = (-b + d.sqrt()) / a;
@@ -200,14 +201,14 @@ impl Hitable for Sphere {
                 rec.u = u;
                 rec.v = v;
                 rec.normal = (rec.p - self.center) / self.radius;
-                return (true, &self.material);
+                return (true, self.material.as_ref());
             }
         }
-        (false, &self.material)
+        (false, self.material.as_ref())
     }
 
-    fn get_material(&self) -> &Box<dyn Material> {
-        &self.material
+    fn get_material(&self) -> &dyn Material {
+        self.material.as_ref()
     }
 
     fn bounding_box(&self, _: f64, _: f64, bounding_box: &mut Aabb) -> bool {
@@ -254,13 +255,7 @@ impl MovingSphere {
 }
 
 impl Hitable for MovingSphere {
-    fn hit(
-        &self,
-        r: &Ray,
-        t_min: f64,
-        t_max: f64,
-        rec: &mut HitRecord,
-    ) -> (bool, &Box<dyn Material>) {
+    fn hit(&self, r: &Ray, t_min: f64, t_max: f64, rec: &mut HitRecord) -> (bool, &dyn Material) {
         let oc = r.origin() - self.center(r.time());
         let a = r.direction().dot(r.direction());
         let b = oc.dot(r.direction());
@@ -273,7 +268,7 @@ impl Hitable for MovingSphere {
                 rec.t = temp;
                 rec.p = r.point_at_param(rec.t);
                 rec.normal = (rec.p - self.center(r.time())) / self.radius;
-                return (true, &self.material);
+                return (true, self.material.as_ref());
             }
 
             let temp = (-b + d.sqrt()) / a;
@@ -281,14 +276,14 @@ impl Hitable for MovingSphere {
                 rec.t = temp;
                 rec.p = r.point_at_param(rec.t);
                 rec.normal = (rec.p - self.center(r.time())) / self.radius;
-                return (true, &self.material);
+                return (true, self.material.as_ref());
             }
         }
-        (false, &self.material)
+        (false, self.material.as_ref())
     }
 
-    fn get_material(&self) -> &Box<dyn Material> {
-        &self.material
+    fn get_material(&self) -> &dyn Material {
+        self.material.as_ref()
     }
 
     fn bounding_box(&self, t0: f64, t1: f64, bounding_box: &mut Aabb) -> bool {
@@ -312,10 +307,16 @@ pub struct BvhNode {
     left: Box<dyn Hitable>,
     right: Box<dyn Hitable>,
     bounding_box: Aabb,
+    material: Box<dyn Material>,
 }
 
 impl BvhNode {
-    pub fn new(nodes: &mut Vec<Box<dyn Hitable>>, t0: f64, t1: f64) -> Self {
+    pub fn new(
+        nodes: &mut Vec<Box<dyn Hitable>>,
+        material: Box<dyn Material>,
+        t0: f64,
+        t1: f64,
+    ) -> Self {
         let mut rng = rand::thread_rng();
         let axis = (3.0 * rng.gen::<f64>()) as i32;
 
@@ -362,6 +363,7 @@ impl BvhNode {
                 left: dyn_clone::clone_box(&*nodes[0]),
                 right: dyn_clone::clone_box(&*nodes[0]),
                 bounding_box: box_left,
+                material: material,
             }
         } else if nodes.len() == 2 {
             let mut box_left = Aabb::new(Vec3::new(), Vec3::new());
@@ -373,12 +375,18 @@ impl BvhNode {
                 left: dyn_clone::clone_box(&*nodes[0]),
                 right: dyn_clone::clone_box(&*nodes[1]),
                 bounding_box: surrounding_box(&box_left, &box_right),
+                material: material,
             }
         } else {
             let mut box_left = Aabb::new(Vec3::new(), Vec3::new());
             let mut box_right = Aabb::new(Vec3::new(), Vec3::new());
-            let left = BvhNode::new(&mut nodes.split_off(nodes.len() / 2), t0, t1);
-            let right = BvhNode::new(nodes, t0, t1);
+            let left = BvhNode::new(
+                &mut nodes.split_off(nodes.len() / 2),
+                dyn_clone::clone_box(&*material),
+                t0,
+                t1,
+            );
+            let right = BvhNode::new(nodes, dyn_clone::clone_box(&*material), t0, t1);
 
             left.bounding_box(t0, t1, &mut box_left);
             right.bounding_box(t0, t1, &mut box_right);
@@ -387,19 +395,14 @@ impl BvhNode {
                 left: Box::new(left),
                 right: Box::new(right),
                 bounding_box: surrounding_box(&box_left, &box_right),
+                material: material,
             }
         }
     }
 }
 
 impl Hitable for BvhNode {
-    fn hit(
-        &self,
-        r: &Ray,
-        t_min: f64,
-        t_max: f64,
-        rec: &mut HitRecord,
-    ) -> (bool, &Box<dyn Material>) {
+    fn hit(&self, r: &Ray, t_min: f64, t_max: f64, rec: &mut HitRecord) -> (bool, &dyn Material) {
         if self.bounding_box.hit(r, t_min, t_max) {
             let mut rec_right = HitRecord::new();
             let mut rec_left = HitRecord::new();
@@ -429,8 +432,8 @@ impl Hitable for BvhNode {
         (false, self.left.get_material())
     }
 
-    fn get_material(&self) -> &Box<dyn Material> {
-        self.left.get_material()
+    fn get_material(&self) -> &dyn Material {
+        self.material.as_ref()
     }
 
     fn bounding_box(&self, _: f64, _: f64, bounding_box: &mut Aabb) -> bool {
@@ -465,13 +468,7 @@ impl RectSliceXy {
 }
 
 impl Hitable for RectSliceXy {
-    fn hit(
-        &self,
-        r: &Ray,
-        t_min: f64,
-        t_max: f64,
-        rec: &mut HitRecord,
-    ) -> (bool, &Box<dyn Material>) {
+    fn hit(&self, r: &Ray, t_min: f64, t_max: f64, rec: &mut HitRecord) -> (bool, &dyn Material) {
         let t = (self.k - r.origin().z()) / r.direction().z();
         if t < t_min || t > t_max {
             return (false, self.get_material());
@@ -493,8 +490,8 @@ impl Hitable for RectSliceXy {
         (true, self.get_material())
     }
 
-    fn get_material(&self) -> &Box<dyn Material> {
-        &self.material
+    fn get_material(&self) -> &dyn Material {
+        self.material.as_ref()
     }
 
     fn bounding_box(&self, _: f64, _: f64, bounding_box: &mut Aabb) -> bool {
@@ -535,13 +532,7 @@ impl RectSliceXz {
 }
 
 impl Hitable for RectSliceXz {
-    fn hit(
-        &self,
-        r: &Ray,
-        t_min: f64,
-        t_max: f64,
-        rec: &mut HitRecord,
-    ) -> (bool, &Box<dyn Material>) {
+    fn hit(&self, r: &Ray, t_min: f64, t_max: f64, rec: &mut HitRecord) -> (bool, &dyn Material) {
         let t = (self.k - r.origin().y()) / r.direction().y();
         if t < t_min || t > t_max {
             return (false, self.get_material());
@@ -563,8 +554,8 @@ impl Hitable for RectSliceXz {
         (true, self.get_material())
     }
 
-    fn get_material(&self) -> &Box<dyn Material> {
-        &self.material
+    fn get_material(&self) -> &dyn Material {
+        self.material.as_ref()
     }
 
     fn bounding_box(&self, _: f64, _: f64, bounding_box: &mut Aabb) -> bool {
@@ -605,13 +596,7 @@ impl RectSliceYz {
 }
 
 impl Hitable for RectSliceYz {
-    fn hit(
-        &self,
-        r: &Ray,
-        t_min: f64,
-        t_max: f64,
-        rec: &mut HitRecord,
-    ) -> (bool, &Box<dyn Material>) {
+    fn hit(&self, r: &Ray, t_min: f64, t_max: f64, rec: &mut HitRecord) -> (bool, &dyn Material) {
         let t = (self.k - r.origin().x()) / r.direction().x();
         if t < t_min || t > t_max {
             return (false, self.get_material());
@@ -633,8 +618,8 @@ impl Hitable for RectSliceYz {
         (true, self.get_material())
     }
 
-    fn get_material(&self) -> &Box<dyn Material> {
-        &self.material
+    fn get_material(&self) -> &dyn Material {
+        self.material.as_ref()
     }
 
     fn bounding_box(&self, _: f64, _: f64, bounding_box: &mut Aabb) -> bool {
@@ -661,18 +646,12 @@ impl FlipNormals {
 }
 
 impl Hitable for FlipNormals {
-    fn hit(
-        &self,
-        r: &Ray,
-        t_min: f64,
-        t_max: f64,
-        rec: &mut HitRecord,
-    ) -> (bool, &Box<dyn Material>) {
+    fn hit(&self, r: &Ray, t_min: f64, t_max: f64, rec: &mut HitRecord) -> (bool, &dyn Material) {
         if self.child.hit(r, t_min, t_max, rec).0 {
             rec.normal = -rec.normal;
-            return (true, self.child.get_material());
+            (true, self.child.get_material())
         } else {
-            return (false, self.child.get_material());
+            (false, self.child.get_material())
         }
     }
 
@@ -680,7 +659,7 @@ impl Hitable for FlipNormals {
         self.child.bounding_box(t0, t1, bounding_box)
     }
 
-    fn get_material(&self) -> &Box<dyn Material> {
+    fn get_material(&self) -> &dyn Material {
         self.child.get_material()
     }
 }
@@ -690,6 +669,7 @@ pub struct BoxObject {
     p0: Vec3,
     p1: Vec3,
     hitlist: HitableList,
+    material: Box<dyn Material>,
 }
 
 impl BoxObject {
@@ -724,18 +704,17 @@ impl BoxObject {
             dyn_clone::clone_box(&*material),
             (p0.y(), p1.y(), p0.z(), p1.z(), p0.x()),
         )))));
-        Self { p0, p1, hitlist }
+        Self {
+            p0,
+            p1,
+            hitlist,
+            material,
+        }
     }
 }
 
 impl Hitable for BoxObject {
-    fn hit(
-        &self,
-        r: &Ray,
-        t_min: f64,
-        t_max: f64,
-        rec: &mut HitRecord,
-    ) -> (bool, &Box<dyn Material>) {
+    fn hit(&self, r: &Ray, t_min: f64, t_max: f64, rec: &mut HitRecord) -> (bool, &dyn Material) {
         self.hitlist.hit(r, t_min, t_max, rec)
     }
 
@@ -744,7 +723,7 @@ impl Hitable for BoxObject {
         true
     }
 
-    fn get_material(&self) -> &Box<dyn Material> {
-        self.hitlist.get_material()
+    fn get_material(&self) -> &dyn Material {
+        self.material.as_ref()
     }
 }

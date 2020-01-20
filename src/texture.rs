@@ -68,7 +68,7 @@ impl NoiseTexture {
     }
 
     pub fn turbulence(&self, p: Vec3) -> f64 {
-        return self.noise.get([p.x(), p.y(), p.z()]);
+        self.noise.get([p.x(), p.y(), p.z()])
     }
 }
 

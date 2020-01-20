@@ -8,25 +8,64 @@ pub mod texture;
 pub mod vec3;
 
 use camera::Camera;
-use image::{ImageBuffer, Pixel, Rgb};
+use clap::clap_app;
+use hitable::HitableList;
+use image::{imageops::*, ImageBuffer, Pixel, Rgb};
 use map::MapFile;
 use rand::Rng;
-use std::sync::mpsc::channel;
 use std::thread::{spawn, JoinHandle};
 use vec3::*;
 
-const MUL: u32 = 6;
-const RAYS: u32 = 20000;
-const CORE_CNT: u32 = 14;
-
 fn main() {
-    let nx = 200 * MUL;
-    let ny = 200 * MUL;
-    let ns = RAYS / CORE_CNT;
-    let map = MapFile::map2();
+    let matches = clap_app!(raytracer =>
+        (version: "0.1")
+        (author: "Valerian G. <valerian.garleanu@pm.me>")
+        (about: "Small raytracer written purely in rust with support for different objects and materials")
+        (@arg MAPFILE: -m --map +takes_value "Specify which map file to load, if no map file is specified, a random one will be generated and dumped to disk")
+        (@arg RAYCNT: -r --rays +takes_value default_value("100") "Specify amount of rays to use for this render")
+        (@arg XRES: -x +takes_value +required default_value("200") "Specify X resolution of the final render")
+        (@arg YRES: -y +takes_value +required default_value("200") "Specify Y resolution of the final render")
+        (@arg THREADCNT: --threads default_value("8") "Specify number of threads to use")
+        (@arg IMAGEOUT: -o --image-ut +required default_value("image.png") "Specify where to save the rendered image")
+        (@arg RENDERDBG: -d "If specified, all lighting enters debug mode")
+    ).get_matches();
+
+    let nx = matches
+        .value_of("XRES")
+        .map(|x| x.parse::<u32>().unwrap_or(200))
+        .unwrap_or(200);
+
+    let ny = matches
+        .value_of("XRES")
+        .map(|x| x.parse::<u32>().unwrap_or(200))
+        .unwrap_or(200);
+
+    let thread_count = matches
+        .value_of("THREADCNT")
+        .map(|x| x.parse::<u32>().unwrap_or(8))
+        .unwrap_or(8);
+
+    let total_rays = matches
+        .value_of("RAYCNT")
+        .map(|x| x.parse::<u32>().unwrap_or(100))
+        .unwrap_or(100);
+
+    let debug = matches.is_present("RENDERDBG");
+
+    let outfile = matches.value_of("IMAGEOUT").unwrap();
+
+    let ns = total_rays / thread_count;
+
+    let map = matches
+        .value_of("MAPFILE")
+        .map_or_else(MapFile::map2, MapFile::load_from_file);
+
+    map.dump_to_file("current_map.json");
+
     let world = map.build_world();
+
     let mut image = ImageBuffer::new(nx, ny);
-    let mut threads: Vec<JoinHandle<()>> = Vec::new();
+    let mut threads: Vec<JoinHandle<Vec<Vec<(u8, u8, u8)>>>> = Vec::new();
 
     let camera = Camera::new(
         map.lookfrom.into(),
@@ -38,59 +77,20 @@ fn main() {
         map.dist_to_focus,
         0.0,
         1.0,
+        debug,
     );
 
-    let (tx, rx) = channel();
-    println!("{}", map.objects.len());
+    println!("Rendering: {}", map.objects.len());
 
-    for _ in 0..CORE_CNT {
+    for _ in 0..thread_count {
         let camera = camera.clone();
-        let mut world = world.clone();
-        let tx = tx.clone();
-        let handle = spawn(move || {
-            let mut rng = rand::thread_rng();
-            let mut result: Vec<Vec<(u8, u8, u8)>> = {
-                let mut x = Vec::new();
-                for _ in 0..nx {
-                    let mut y = Vec::new();
-                    for _ in 0..ny {
-                        y.push((0, 0, 0))
-                    }
-                    x.push(y)
-                }
-                x
-            };
-            for j in 0..ny {
-                println!("Render column: {} out of {}", j, ny);
-                for i in 0..nx {
-                    let mut col = Vec3::new();
-                    for _ in 0..ns {
-                        let u = ((i as f64) + rng.gen::<f64>()) / (nx as f64);
-                        let v = (((ny - j) as f64) + rng.gen::<f64>()) / (ny as f64);
-                        let ray = camera.get_ray(u, v);
-                        col += ray.color(&mut world, 0);
-                    }
-
-                    col /= ns as f64;
-                    col = Vec3::with_values(col.x().min(1.0), col.y().min(1.0), col.z().min(1.0));
-
-                    let ir = (255.99 * col.x().sqrt()) as u8;
-                    let ig = (255.99 * col.y().sqrt()) as u8;
-                    let ib = (255.99 * col.z().sqrt()) as u8;
-                    result[i as usize][j as usize] = (ir, ig, ib);
-                }
-            }
-            let _ = tx.send(result);
-        });
+        let world = world.clone();
+        let handle = spawn(move || render(camera, world, nx, ny, ns));
         threads.push(handle);
     }
 
-    let mut results: Vec<Vec<Vec<(u8, u8, u8)>>> = Vec::new();
-
-    for i in threads.drain(0..) {
-        i.join().unwrap();
-        results.push(rx.recv().unwrap());
-    }
+    let results: Vec<Vec<Vec<(u8, u8, u8)>>> =
+        threads.drain(0..).map(|x| x.join().unwrap()).collect();
 
     let blank: Vec<Vec<(u8, u8, u8)>> = {
         let mut x = Vec::new();
@@ -134,5 +134,43 @@ fn main() {
             );
         }
     }
-    image.save("image.png").unwrap();
+
+    // NOTE: Figure out why the image comes out flipped and rotated requiring manual fix
+    let image = rotate90(&image);
+    let image = flip_horizontal(&image);
+    image.save(outfile).unwrap();
+}
+
+fn render(
+    camera: Camera,
+    mut world: HitableList,
+    nx: u32,
+    ny: u32,
+    ns: u32,
+) -> Vec<Vec<(u8, u8, u8)>> {
+    let mut rng = rand::thread_rng();
+    let mut result = Vec::new();
+    for j in 0..ny {
+        println!("Render column: {} out of {}", j, ny);
+        let mut column = Vec::new();
+        for i in 0..nx {
+            let mut col = Vec3::new();
+            for _ in 0..ns {
+                let u = ((i as f64) + rng.gen::<f64>()) / (nx as f64);
+                let v = (((ny - j) as f64) + rng.gen::<f64>()) / (ny as f64);
+                let ray = camera.get_ray(u, v);
+                col += ray.color(&mut world, 0);
+            }
+
+            col /= ns as f64;
+            col = Vec3::with_values(col.x().min(1.0), col.y().min(1.0), col.z().min(1.0));
+
+            let ir = (255.99 * col.x().sqrt()) as u8;
+            let ig = (255.99 * col.y().sqrt()) as u8;
+            let ib = (255.99 * col.z().sqrt()) as u8;
+            column.push((ir, ig, ib));
+        }
+        result.push(column);
+    }
+    result
 }

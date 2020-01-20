@@ -56,13 +56,18 @@ impl Lambertian {
 impl Material for Lambertian {
     fn scatter(
         &self,
-        ray_in: &Ray,
+        ray: &Ray,
         hit_record: &HitRecord,
         attenuation: &mut Vec3,
         scattered: &mut Ray,
     ) -> bool {
         let target = hit_record.p + hit_record.normal + Ray::random_in_sphere();
-        scattered.update(Ray::with_values(hit_record.p, target - hit_record.p, None));
+        scattered.update(Ray::with_values(
+            hit_record.p,
+            target - hit_record.p,
+            None,
+            ray.3,
+        ));
         attenuation.update(self.albedo.value(hit_record.u, hit_record.v, hit_record.p));
         true
     }
@@ -96,6 +101,7 @@ impl Material for Metal {
             hit_record.p,
             reflected + self.fuzz * Ray::random_in_sphere(),
             Some(ray_in.time()),
+            ray_in.3,
         ));
         attenuation.update(self.albedo.value(hit_record.u, hit_record.v, hit_record.p));
         scattered.direction().dot(hit_record.normal) > 0.0
@@ -153,9 +159,9 @@ impl Material for Dielectric {
         }
 
         if rng.gen::<f64>() < reflect_prob {
-            scattered.update(Ray::with_values(hit_record.p, reflected, None));
+            scattered.update(Ray::with_values(hit_record.p, reflected, None, ray_in.3));
         } else {
-            scattered.update(Ray::with_values(hit_record.p, refracted, None));
+            scattered.update(Ray::with_values(hit_record.p, refracted, None, ray_in.3));
         }
         true
     }
@@ -167,6 +173,12 @@ pub struct Blank;
 impl Blank {
     pub fn new() -> Self {
         Self
+    }
+}
+
+impl Default for Blank {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
